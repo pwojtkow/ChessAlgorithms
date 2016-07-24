@@ -1,7 +1,10 @@
 package com.capgemini.chess.algorithms.implementation;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.capgemini.chess.algorithms.data.Coordinate;
 import com.capgemini.chess.algorithms.data.Move;
@@ -13,6 +16,13 @@ import com.capgemini.chess.algorithms.data.enums.PieceType;
 import com.capgemini.chess.algorithms.data.generated.Board;
 import com.capgemini.chess.algorithms.implementation.exceptions.InvalidMoveException;
 import com.capgemini.chess.algorithms.implementation.exceptions.KingInCheckException;
+import com.capgemini.chess.algorithms.strategy.BishopMoveStrategyValidation;
+import com.capgemini.chess.algorithms.strategy.KnightMoveStrategyValidation;
+import com.capgemini.chess.algorithms.strategy.MoveStrategyValidation;
+import com.capgemini.chess.algorithms.strategy.StrategiesHolder;
+import com.capgemini.chess.algorithms.strategy.PawnMoveStrategyValidation;
+import com.capgemini.chess.algorithms.strategy.QueenMoveStrategyValidation;
+import com.capgemini.chess.algorithms.strategy.RookMoveStrategyValidation;
 
 /**
  * Class for managing of basic operations on the Chess Board.
@@ -22,6 +32,7 @@ import com.capgemini.chess.algorithms.implementation.exceptions.KingInCheckExcep
  */
 public class BoardManager {
 
+	private static final int ALL_SQUARES_IN_BOARD = 64;
 	private Board board = new Board();
 
 	public BoardManager() {
@@ -63,7 +74,6 @@ public class BoardManager {
 	public Move performMove(Coordinate from, Coordinate to) throws InvalidMoveException {
 
 		Move move = validateMove(from, to);
-
 		addMove(move);
 
 		return move;
@@ -232,22 +242,115 @@ public class BoardManager {
 	}
 
 	private Move validateMove(Coordinate from, Coordinate to) throws InvalidMoveException, KingInCheckException {
+		StrategiesHolder strategiesHolder = new StrategiesHolder();
 
-		// TODO please add implementation here
-		return null;
+		Piece actualPiece = board.getPieceAt(from);
+
+		MoveStrategyValidation validator = strategiesHolder.findValidationStrategy(actualPiece.getType());
+		MoveType checkingMoveType = validator.checkMoveValidation(from, to, board);
+		Move checkedMove = creatingMoveToReturn(from, to, actualPiece, checkingMoveType);
+		return checkedMove;
 	}
 
-	private boolean isKingInCheck(Color kingColor) {
+	private Move creatingMoveToReturn(Coordinate from, Coordinate to, Piece actualPiece, MoveType checkingMoveType) {
+		Move checkingMove = new Move();
+		checkingMove.setFrom(from);
+		checkingMove.setTo(to);
+		checkingMove.setMovedPiece(actualPiece);
+		checkingMove.setType(checkingMoveType);
+		return checkingMove;
+	}
 
-		// TODO please add implementation here
+	//ZMIANA NA PRIVATE
+	public boolean isKingInCheck(Color kingColor) {
+		Map<Piece, Coordinate> piecesAtBoard = new HashMap<Piece, Coordinate>();
+		Coordinate kingsCoordinate = null;
+
+		getAllEnemyPiecesAtBoard(kingColor, piecesAtBoard);
+
+		return checkEveryPieceForCheck(piecesAtBoard, kingsCoordinate);
+	}
+
+	private boolean checkEveryPieceForCheck(Map<Piece, Coordinate> piecesAtBoard, Coordinate kingsCoordinate) {
+		for (Piece piece : piecesAtBoard.keySet()) {
+			try {
+				Move validatedMove = validateMove(piecesAtBoard.get(piece), kingsCoordinate);
+				if (validatedMove.getType() == MoveType.CAPTURE) {
+					return true;
+				} else {
+					return false;
+				}
+			} catch (Exception ex) {
+				return false;
+			}
+		}
 		return false;
+	}
+
+	private void getAllEnemyPiecesAtBoard(Color kingColor, Map<Piece, Coordinate> piecesAtBoard) {
+		for (int i = 0; i < board.getPieces().length; i++) {
+			for (int j = 0; j < board.getPieces()[i].length; j++) {
+				setKingsCoordinate(kingColor, i, j);
+				if (isSquareNotEmpty(i, j) && isPieceInDifferentColor(kingColor, i, j)) {
+					Coordinate actualCoordinate = new Coordinate(i, j);
+					piecesAtBoard.put(board.getPieceAt(actualCoordinate), actualCoordinate);
+				}
+			}
+		}
+	}
+
+	private void setKingsCoordinate(Color kingColor, int i, int j) {
+		Coordinate kingsCoordinate;
+		if (board.getPieceAt(new Coordinate(i, j)).getType() == PieceType.KING) {
+			if (board.getPieceAt(new Coordinate(i, j)).getColor() == kingColor) {
+				kingsCoordinate = new Coordinate(i, j);
+			}
+		}
+	}
+
+	private boolean isPieceInDifferentColor(Color kingColor, int i, int j) {
+		return board.getPieceAt(new Coordinate(i, j)).getColor() != kingColor;
+	}
+
+	private boolean isSquareNotEmpty(int i, int j) {
+		return board.getPieceAt(new Coordinate(i, j)) != null;
 	}
 
 	private boolean isAnyMoveValid(Color nextMoveColor) {
+		List<Coordinate> piecesAtBoard = new ArrayList<Coordinate>();
+		int counter = 0;
+		addEnemyPiecesToList(nextMoveColor, piecesAtBoard);
+		counter = countNumberOfValidMoves(piecesAtBoard, counter);
+		if (counter == 0) {
+			return false;
+		} else {
+			return true;
+		}
+	}
 
-		// TODO please add implementation here
+	private int countNumberOfValidMoves(List<Coordinate> piecesAtBoard, int counter) {
+		for (int i = 0; i < piecesAtBoard.size(); i++) {
+			for (int j = 0; j < ALL_SQUARES_IN_BOARD; j++) {
+				try {
+					if (validateMove(piecesAtBoard.get(i), new Coordinate(i, j)) != null) {
+						counter++;
+					}
+				} catch (Exception ex) {
+				}
+			}
+		}
+		return counter;
+	}
 
-		return false;
+	private void addEnemyPiecesToList(Color nextMoveColor, List<Coordinate> piecesAtBoard) {
+		for (int i = 0; i < board.getPieces().length; i++) {
+			for (int j = 0; j < board.getPieces()[i].length; j++) {
+				if (isSquareNotEmpty(i, j) && isPieceInDifferentColor(nextMoveColor, i, j)) {
+					Coordinate actualCoordinate = new Coordinate(i, j);
+					piecesAtBoard.add(actualCoordinate);
+				}
+			}
+		}
 	}
 
 	private Color calculateNextMoveColor() {
