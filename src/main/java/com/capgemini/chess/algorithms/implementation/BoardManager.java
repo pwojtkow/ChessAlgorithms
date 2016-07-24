@@ -1,5 +1,8 @@
 package com.capgemini.chess.algorithms.implementation;
 
+import static com.capgemini.chess.algorithms.strategy.MoveValidationSupport.coordinatesInsideBoard;
+import static com.capgemini.chess.algorithms.strategy.MoveValidationSupport.coordinatesNotTheSame;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -19,6 +22,7 @@ import com.capgemini.chess.algorithms.implementation.exceptions.KingInCheckExcep
 import com.capgemini.chess.algorithms.strategy.BishopMoveStrategyValidation;
 import com.capgemini.chess.algorithms.strategy.KnightMoveStrategyValidation;
 import com.capgemini.chess.algorithms.strategy.MoveStrategyValidation;
+import com.capgemini.chess.algorithms.strategy.MoveValidationSupport;
 import com.capgemini.chess.algorithms.strategy.StrategiesHolder;
 import com.capgemini.chess.algorithms.strategy.PawnMoveStrategyValidation;
 import com.capgemini.chess.algorithms.strategy.QueenMoveStrategyValidation;
@@ -72,7 +76,6 @@ public class BoardManager {
 	 *             in case move is not valid
 	 */
 	public Move performMove(Coordinate from, Coordinate to) throws InvalidMoveException {
-
 		Move move = validateMove(from, to);
 		addMove(move);
 
@@ -242,13 +245,16 @@ public class BoardManager {
 	}
 
 	private Move validateMove(Coordinate from, Coordinate to) throws InvalidMoveException, KingInCheckException {
+		coordinatesNotTheSame(from, to);
+		coordinatesInsideBoard(from, board);
+		coordinatesInsideBoard(to, board);
 		StrategiesHolder strategiesHolder = new StrategiesHolder();
-
 		Piece actualPiece = board.getPieceAt(from);
-
+		
 		MoveStrategyValidation validator = strategiesHolder.findValidationStrategy(actualPiece.getType());
 		MoveType checkingMoveType = validator.checkMoveValidation(from, to, board);
 		Move checkedMove = creatingMoveToReturn(from, to, actualPiece, checkingMoveType);
+		
 		return checkedMove;
 	}
 
@@ -261,12 +267,11 @@ public class BoardManager {
 		return checkingMove;
 	}
 
-	//ZMIANA NA PRIVATE
-	public boolean isKingInCheck(Color kingColor) {
+	private boolean isKingInCheck(Color kingColor) {
 		Map<Piece, Coordinate> piecesAtBoard = new HashMap<Piece, Coordinate>();
 		Coordinate kingsCoordinate = null;
 
-		getAllEnemyPiecesAtBoard(kingColor, piecesAtBoard);
+		getAllEnemyPiecesAtBoard(kingColor, piecesAtBoard, kingsCoordinate);
 
 		return checkEveryPieceForCheck(piecesAtBoard, kingsCoordinate);
 	}
@@ -287,10 +292,10 @@ public class BoardManager {
 		return false;
 	}
 
-	private void getAllEnemyPiecesAtBoard(Color kingColor, Map<Piece, Coordinate> piecesAtBoard) {
+	private void getAllEnemyPiecesAtBoard(Color kingColor, Map<Piece, Coordinate> piecesAtBoard, Coordinate kingsCoordinate) {
 		for (int i = 0; i < board.getPieces().length; i++) {
 			for (int j = 0; j < board.getPieces()[i].length; j++) {
-				setKingsCoordinate(kingColor, i, j);
+				setKingsCoordinate(kingColor, i, j, kingsCoordinate);
 				if (isSquareNotEmpty(i, j) && isPieceInDifferentColor(kingColor, i, j)) {
 					Coordinate actualCoordinate = new Coordinate(i, j);
 					piecesAtBoard.put(board.getPieceAt(actualCoordinate), actualCoordinate);
@@ -299,8 +304,7 @@ public class BoardManager {
 		}
 	}
 
-	private void setKingsCoordinate(Color kingColor, int i, int j) {
-		Coordinate kingsCoordinate;
+	private void setKingsCoordinate(Color kingColor, int i, int j, Coordinate kingsCoordinate) {
 		if (board.getPieceAt(new Coordinate(i, j)).getType() == PieceType.KING) {
 			if (board.getPieceAt(new Coordinate(i, j)).getColor() == kingColor) {
 				kingsCoordinate = new Coordinate(i, j);
